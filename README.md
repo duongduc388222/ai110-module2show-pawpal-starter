@@ -1,43 +1,139 @@
-# PawPal+ (Module 2 Project)
+# PawPal+ — Smart Pet Care Scheduler
 
-You are building **PawPal+**, a Streamlit app that helps a pet owner plan care tasks for their pet.
+PawPal+ is a Streamlit-based pet care management system that lets a pet owner schedule, track, and optimise care tasks across multiple pets. It was designed with a UML-first workflow, implemented using Python dataclasses, and verified through a 32-test pytest suite.
 
-## Scenario
+---
 
-A busy pet owner needs help staying consistent with pet care. They want an assistant that can:
+## Features
 
-- Track pet care tasks (walks, feeding, meds, enrichment, grooming, etc.)
-- Consider constraints (time available, priority, owner preferences)
-- Produce a daily plan and explain why it chose that plan
+| Feature | Description |
+| :--- | :--- |
+| **Multi-pet management** | Register any number of pets, each with its own task list |
+| **Priority tracking** | Tasks ranked `low` / `medium` / `high` with visual indicators |
+| **Chronological sorting** | Full-day view ordered by start time across all pets |
+| **Flexible filtering** | Isolate tasks by pet name and/or completion status |
+| **Recurrence** | `daily` and `weekly` tasks auto-regenerate once completed |
+| **Conflict detection** | Flags overlapping time windows for the same pet |
 
-Your job is to design the system first (UML), then implement the logic in Python, then connect it to the Streamlit UI.
+---
 
-## What you will build
+## System Architecture
 
-Your final app should:
+```mermaid
+classDiagram
+    class Owner {
+        +name: str
+        +email: str
+        +pets: list[Pet]
+        +add_pet(pet) None
+        +get_pets() list[Pet]
+        +get_pet(name) Optional[Pet]
+    }
+    class Pet {
+        +name: str
+        +species: str
+        +tasks: list[Task]
+        +add_task(task) None
+        +complete_task(task_id) bool
+        +get_tasks() list[Task]
+        +get_pending_tasks() list[Task]
+    }
+    class Task {
+        +title: str
+        +time: str
+        +duration_minutes: int
+        +priority: str
+        +pet_name: str
+        +frequency: str
+        +completed: bool
+        +task_id: str
+        +end_time() str
+        +mark_complete() None
+        +clone_pending() Task
+    }
+    class Scheduler {
+        +owner: Owner
+        +get_all_tasks() list[Task]
+        +sort_tasks(tasks) list[Task]
+        +filter_tasks(pet_name, completed) list[Task]
+        +detect_conflicts() list[tuple]
+        +generate_recurring() list[Task]
+        +build_schedule() list[Task]
+    }
+    Owner "1" --> "*" Pet : owns
+    Pet "1" --> "*" Task : has
+    Scheduler --> Owner : coordinates
+```
 
-- Let a user enter basic owner + pet info
-- Let a user add/edit tasks (duration + priority at minimum)
-- Generate a daily schedule/plan based on constraints and priorities
-- Display the plan clearly (and ideally explain the reasoning)
-- Include tests for the most important scheduling behaviors
+**Design summary:** `Owner` is the top-level container; `Pet` manages its own task list; `Task` is an atomic unit carrying time, duration, and recurrence metadata; `Scheduler` holds a reference to `Owner` so it can traverse all pets and perform cross-pet operations.
 
-## Getting started
+---
+
+## Getting Started
+
+### Prerequisites
+
+Python 3.10 or newer.
 
 ### Setup
 
 ```bash
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### Suggested workflow
+### Run the Streamlit app
 
-1. Read the scenario carefully and identify requirements and edge cases.
-2. Draft a UML diagram (classes, attributes, methods, relationships).
-3. Convert UML into Python class stubs (no logic yet).
-4. Implement scheduling logic in small increments.
-5. Add tests to verify key behaviors.
-6. Connect your logic to the Streamlit UI in `app.py`.
-7. Refine UML so it matches what you actually built.
+```bash
+streamlit run app.py
+```
+
+Open the URL printed in the terminal (typically http://localhost:8501).
+
+### Run the CLI demo
+
+```bash
+python main.py
+```
+
+The demo creates 1 owner (Jordan), 2 pets (Mochi the cat and Rex the dog), 6 tasks, and exercises every scheduler feature: sorted schedule, pet-level filter, conflict detection, task completion, and recurring task generation.
+
+### Run tests
+
+```bash
+pytest test_pawpal.py -v
+```
+
+---
+
+## Testing
+
+`test_pawpal.py` contains 32 tests organised into six classes:
+
+| Class | What is tested |
+| :--- | :--- |
+| `TestTask` | `end_time()` arithmetic (including hour-boundary and midnight), `mark_complete()`, `clone_pending()` field inheritance, unique task IDs |
+| `TestPet` | `add_task()`, `complete_task()` (found / not found), `get_pending_tasks()` exclusion of completed items |
+| `TestOwner` | `add_pet()` / `get_pets()`, `get_pet()` case-insensitive lookup and not-found sentinel |
+| `TestSchedulerSort` | Two-task cross-pet ordering, N-task deterministic sort, external list input |
+| `TestSchedulerFilter` | Filter by pet name, by pending status, by completed status, combined filter |
+| `TestSchedulerConflicts` | Overlap detection, sequential non-conflict, exactly-adjacent non-conflict, cross-pet non-conflict, completed-task exclusion |
+| `TestSchedulerRecurrence` | Daily and weekly regeneration, `once` guard, no-duplicate-on-second-call, multi-pet bulk regeneration |
+
+All 32 tests pass with `pytest test_pawpal.py -v`.
+
+---
+
+## AI Collaboration
+
+This project was built with AI assistance (Cursor / Claude) for:
+
+- Drafting and iterating the UML class diagram (decided `Scheduler` should hold a reference to `Owner` rather than a flat pet list — cleaner access by name)
+- Generating dataclass stubs from the UML spec
+- Implementing conflict detection overlap logic and recurrence deduplication
+- Expanding the pytest suite and catching edge cases (adjacent-but-not-overlapping tasks, cross-pet false positives, double-recurrence guards)
+
+All AI outputs were reviewed against the spec and manually verified before acceptance. The most significant override: AI initially proposed using `datetime` objects for time representation; this was simplified to `str` (`HH:MM`) because the project scope is single-day scheduling and string arithmetic is sufficient, keeping the model lighter.
+
+See `reflection.md` for a full account of design decisions, tradeoffs, and AI collaboration strategy.
