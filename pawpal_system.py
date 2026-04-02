@@ -51,9 +51,14 @@ classDiagram
 
 from __future__ import annotations
 
+import json
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
 from typing import Optional
+
+# Priority rank used for multi-tier sorting (lower number = higher urgency)
+PRIORITY_ORDER: dict[str, int] = {"high": 0, "medium": 1, "low": 2}
 
 
 # ---------------------------------------------------------------------------
@@ -265,6 +270,65 @@ class Scheduler:
         pending = self.filter_tasks(completed=False)
         return self.sort_tasks(pending)
 
+    # Challenge 3 ─────────────────────────────────────────────────────────────
+
+    def sort_by_priority_then_time(
+        self, tasks: Optional[list[Task]] = None
+    ) -> list[Task]:
+        """Sort tasks: high priority first; within the same tier, by start time.
+
+        Uses all owner tasks when no explicit list is supplied.
+        """
+        source = tasks if tasks is not None else self.get_all_tasks()
+        return sorted(
+            source,
+            key=lambda t: (PRIORITY_ORDER.get(t.priority, 99), t.time),
+        )
+
+    # Challenge 1 ─────────────────────────────────────────────────────────────
+
+    def find_next_slot(
+        self,
+        duration: int,
+        after: str = "07:00",
+        pet_name: Optional[str] = None,
+    ) -> Optional[str]:
+        """Find the earliest available gap of at least `duration` minutes.
+
+        Parameters
+        ----------
+        duration:  required slot length in minutes.
+        after:     earliest acceptable start time ('HH:MM'). Defaults to 07:00.
+        pet_name:  when supplied, only considers that pet's tasks (avoids
+                   double-booking a single animal). When None, considers all
+                   pending tasks (useful for owner-level time blocking).
+
+        Returns 'HH:MM' of the slot start, or None if no gap exists before
+        midnight.
+        """
+        if pet_name:
+            tasks = self.filter_tasks(pet_name=pet_name, completed=False)
+        else:
+            tasks = self.filter_tasks(completed=False)
+
+        occupied = self.sort_tasks(tasks)
+        cursor = self._time_to_minutes(after)
+
+        for task in occupied:
+            task_start = self._time_to_minutes(task.time)
+            task_end = task_start + task.duration_minutes
+
+            if task_start >= cursor + duration:
+                # Gap before this task is large enough
+                break
+            if task_end > cursor:
+                # Task blocks our cursor; advance past it
+                cursor = task_end
+
+        if cursor + duration <= 24 * 60:
+            return f"{cursor // 60:02d}:{cursor % 60:02d}"
+        return None
+
     # ── private helpers ───────────────────────────────────────────────────────
 
     @staticmethod
@@ -280,3 +344,44 @@ class Scheduler:
         b_start = self._time_to_minutes(b.time)
         b_end = b_start + b.duration_minutes
         return a_start < b_end and b_start < a_end
+
+
+# ---------------------------------------------------------------------------
+# Challenge 2 — JSON persistence (module-level helpers)
+# ---------------------------------------------------------------------------
+
+def save_to_json(owner: Owner, filepath: str = "pawpal_data.json") -> None:
+    """Serialise the Owner (with all nested Pets and Tasks) to a JSON file.
+
+    Uses dataclasses.asdict() to convert the full object graph to plain dicts
+    before passing to json.dump, so no third-party serialisation library is
+    needed.
+    """
+    Path(filepath).write_text(json.dumps(asdict(owner), indent=2))
+
+
+def load_from_json(filepath: str = "pawpal_data.json") -> Owner:
+    """Reconstruct an Owner from a JSON file produced by save_to_json.
+
+    Manually rebuilds Owner → Pet → Task so that each object is a proper
+    dataclass instance (not a plain dict) and task_ids are preserved.
+    """
+    data = json.loads(Path(filepath).read_text())
+    owner = Owner(name=data["name"], email=data.get("email", ""))
+    for pd in data.get("pets", []):
+        pet = Pet(name=pd["name"], species=pd["species"])
+        for td in pd.get("tasks", []):
+            pet.add_task(
+                Task(
+                    title=td["title"],
+                    time=td["time"],
+                    duration_minutes=td["duration_minutes"],
+                    priority=td["priority"],
+                    pet_name=td["pet_name"],
+                    frequency=td.get("frequency", "once"),
+                    completed=td.get("completed", False),
+                    task_id=td["task_id"],
+                )
+            )
+        owner.add_pet(pet)
+    return owner

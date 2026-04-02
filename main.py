@@ -1,6 +1,14 @@
-"""PawPal+ CLI demo — showcases 1 Owner, 2 Pets, 6 Tasks, and Scheduler logic."""
+"""PawPal+ CLI demo — showcases 1 Owner, 2 Pets, 6 Tasks, and Scheduler logic.
 
-from pawpal_system import Owner, Pet, Task, Scheduler
+Challenge 4: uses tabulate for polished table output.
+Challenge 1: demonstrates find_next_slot (Next Available Slot).
+Challenge 3: demonstrates sort_by_priority_then_time.
+Challenge 2: demonstrates save_to_json / load_from_json.
+"""
+
+from tabulate import tabulate
+
+from pawpal_system import Owner, Pet, Task, Scheduler, save_to_json, load_from_json
 
 _WIDTH = 57
 
@@ -12,6 +20,25 @@ def _divider(label: str = "") -> None:
         print(f"\n{'─' * pad} {label} {'─' * remainder}")
     else:
         print("─" * _WIDTH)
+
+
+def _task_rows(tasks: list[Task]) -> list[list]:
+    PRIORITY_ICON = {"high": "🔴", "medium": "🟡", "low": "🟢"}
+    return [
+        [
+            "✓" if t.completed else "○",
+            t.time,
+            t.end_time(),
+            t.title,
+            t.pet_name,
+            f"{PRIORITY_ICON.get(t.priority, '')} {t.priority}",
+            t.frequency,
+        ]
+        for t in tasks
+    ]
+
+
+_HEADERS = ["", "Start", "End", "Task", "Pet", "Priority", "Freq"]
 
 
 def main() -> None:
@@ -30,8 +57,8 @@ def main() -> None:
 
     # Tasks for Rex
     rex.add_task(Task("Morning walk",  "07:30", 30, "high",   "Rex", "daily"))
-    rex.add_task(Task("Grooming",      "09:00", 45, "medium", "Rex", "weekly"))
-    rex.add_task(Task("Evening walk",  "18:00", 30, "high",   "Rex", "daily"))
+    rex.add_task(Task("Grooming",      "09:00", 45, "low",    "Rex", "weekly"))
+    rex.add_task(Task("Evening walk",  "18:00", 30, "medium", "Rex", "daily"))
 
     scheduler = Scheduler(owner=owner)
 
@@ -39,15 +66,21 @@ def main() -> None:
     print(f"  PawPal+ Demo  —  {owner}")
     print("=" * _WIDTH)
 
-    # ── Full sorted schedule ──────────────────────────────────────────────────
+    # ── Sorted schedule (Challenge 4: tabulate) ───────────────────────────────
     _divider("Full Schedule — sorted by time")
-    for task in scheduler.build_schedule():
-        print(" ", task)
+    print(tabulate(_task_rows(scheduler.build_schedule()), headers=_HEADERS, tablefmt="rounded_outline"))
+
+    # ── Challenge 3: Priority-then-time sort ──────────────────────────────────
+    _divider("Priority Sort — high first, then time")
+    print(tabulate(
+        _task_rows(scheduler.sort_by_priority_then_time()),
+        headers=_HEADERS,
+        tablefmt="rounded_outline",
+    ))
 
     # ── Filter to a single pet ────────────────────────────────────────────────
     _divider("Rex's tasks only")
-    for task in scheduler.filter_tasks(pet_name="Rex"):
-        print(" ", task)
+    print(tabulate(_task_rows(scheduler.filter_tasks(pet_name="Rex")), headers=_HEADERS, tablefmt="rounded_outline"))
 
     # ── Conflict detection ────────────────────────────────────────────────────
     _divider("Conflict Detection")
@@ -61,20 +94,31 @@ def main() -> None:
     else:
         print("  ✓  No conflicts detected.")
 
-    # ── Recurrence: complete a daily task, then regenerate ────────────────────
+    # ── Challenge 1: Next Available Slot ─────────────────────────────────────
+    _divider("Next Available Slot (Challenge 1)")
+    slot_global = scheduler.find_next_slot(duration=30, after="07:00")
+    print(f"  Next free 30-min slot (all pets): {slot_global}")
+    slot_mochi = scheduler.find_next_slot(duration=30, after="07:00", pet_name="Mochi")
+    print(f"  Next free 30-min slot for Mochi:  {slot_mochi}")
+
+    # ── Recurrence ────────────────────────────────────────────────────────────
     _divider("Recurrence")
     feeding = mochi.tasks[0]
     mochi.complete_task(feeding.task_id)
     print(f"  Marked complete: {feeding.title} ({feeding.pet_name})")
-
     new_tasks = scheduler.generate_recurring()
     for t in new_tasks:
         print(f"  New recurring task: {t.title} @ {t.time} for {t.pet_name}")
 
-    # ── Updated schedule after recurrence ─────────────────────────────────────
-    _divider("Updated Schedule (pending tasks only)")
-    for task in scheduler.build_schedule():
-        print(" ", task)
+    # ── Challenge 2: JSON Persistence ─────────────────────────────────────────
+    _divider("JSON Persistence (Challenge 2)")
+    save_to_json(owner, "pawpal_data.json")
+    print("  Saved to pawpal_data.json")
+    loaded = load_from_json("pawpal_data.json")
+    print(f"  Loaded back: {loaded}")
+    print(f"  Pets: {[p.name for p in loaded.get_pets()]}")
+    task_count = sum(len(p.tasks) for p in loaded.get_pets())
+    print(f"  Total tasks loaded: {task_count}")
 
     _divider()
 

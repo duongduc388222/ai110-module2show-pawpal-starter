@@ -129,6 +129,32 @@ All 32 tests pass with `pytest test_pawpal.py -v`.
 
 ---
 
+## Advanced Challenges
+
+Five optional challenges from `challenge.md` were implemented:
+
+### Challenge 1 — Agent-Driven Algorithm: Next Available Slot
+
+`Scheduler.find_next_slot(duration, after, pet_name)` scans all pending tasks in chronological order and walks a cursor forward past occupied windows until a gap of at least `duration` minutes is found. It can search globally (across all pets, for owner time-blocking) or per-pet (to avoid double-booking a single animal). The logic was designed with AI assistance: the key algorithmic insight was to advance the cursor to `max(cursor, task_end)` on each pass rather than re-scanning from the start — this gives O(n) performance.
+
+### Challenge 2 — Data Persistence Layer
+
+`save_to_json(owner, filepath)` and `load_from_json(filepath)` serialise/deserialise the full Owner → Pet → Task object graph using `dataclasses.asdict()` and standard `json`. No third-party serialisation library is needed. In `app.py`, `st.session_state` auto-loads from `pawpal_data.json` on startup if the file exists, and a **Save to JSON** button in the sidebar lets the user persist their session at any time.
+
+### Challenge 3 — Priority-Based Scheduling
+
+`Scheduler.sort_by_priority_then_time()` performs a two-key sort: primary by priority tier (high → medium → low) and secondary by `HH:MM` start time within each tier. The Schedule tab in the Streamlit UI exposes a **Sort by** dropdown (`Time` vs `Priority then Time`) so the user can toggle between views.
+
+### Challenge 4 — Professional UI & Formatting
+
+`main.py` uses the `tabulate` library (`rounded_outline` style) to render every schedule output as a formatted table with emoji priority indicators (🔴/🟡/🟢). The Streamlit UI already uses these same icons alongside frequency glyphs (🔁/📅/1️⃣) in the schedule dataframe.
+
+### Challenge 5 — Multi-Model Benchmarking
+
+See the **Prompt Comparison** section in `reflection.md` for a side-by-side analysis of Claude vs GPT-4o on the `find_next_slot` implementation task.
+
+---
+
 ## AI Collaboration
 
 This project was built with AI assistance (Cursor / Claude) for:

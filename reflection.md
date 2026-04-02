@@ -98,3 +98,41 @@ The biggest thing to redesign would be time representation: moving from bare `HH
 **c. Key takeaway**
 
 Designing the system on paper first — even a rough Mermaid class diagram — dramatically reduces the cost of AI-assisted coding. When the AI has a clear spec (class names, attributes, relationships, method signatures), it generates accurate code on the first attempt rather than requiring multiple correction rounds. The AI works best as an *implementer of a design you own*, not as an autonomous architect.
+
+---
+
+## 6. Prompt Comparison (Challenge 5 — Multi-Model Benchmarking)
+
+**Task given to both models:** Implement `Scheduler.find_next_slot(duration, after, pet_name)` — the Next Available Slot algorithm.
+
+**Prompt used (identical for both):**
+> Given the Scheduler dataclass which holds an Owner with multiple Pets each having Tasks (title, time: 'HH:MM', duration_minutes), implement `find_next_slot(duration: int, after: str = '07:00', pet_name: str | None = None) -> str | None` that finds the first free gap of at least `duration` minutes starting from `after`. If `pet_name` is given, only consider that pet's tasks. Return None if no gap exists before midnight.
+
+---
+
+**Claude (claude-sonnet-4.5) — first attempt:**
+
+Produced a clean cursor-walk approach immediately, reusing the existing `_time_to_minutes` helper without being told it existed, and including a correct early `break` when the first large-enough gap is found:
+
+```python
+cursor = self._time_to_minutes(after)
+for task in self.sort_tasks(tasks):
+    task_start = self._time_to_minutes(task.time)
+    task_end = task_start + task.duration_minutes
+    if task_start >= cursor + duration:
+        break          # gap found before this task
+    if task_end > cursor:
+        cursor = task_end
+```
+
+Output was directly usable with no corrections.
+
+**GPT-4o — first attempt:**
+
+Also produced a correct solution, but with two differences requiring a follow-up prompt:
+1. Used `datetime.time` arithmetic instead of the project's established integer-minutes convention — introduced an import and two helper lines that weren't needed.
+2. Did not include the early `break`, iterating all remaining tasks after a gap was already found (O(n) instead of O(k) where k ≤ n).
+
+After one correction prompt ("use `_time_to_minutes` and add an early break"), GPT-4o produced equivalent output.
+
+**Verdict:** Claude produced a more context-aware solution on the first pass by correctly inferring project conventions from the surrounding class definition. GPT-4o required one correction round. For tasks where the model must infer and honour existing conventions (rather than starting from scratch), reading context before generating was the decisive factor.
