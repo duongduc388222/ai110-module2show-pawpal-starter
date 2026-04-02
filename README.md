@@ -4,6 +4,10 @@ PawPal+ is a Streamlit-based pet care management system that lets a pet owner sc
 
 ---
 
+## Demo
+
+![PawPal+ Schedule view showing Duc's pet Milu with tasks, filters, and mark-complete](demo.png)
+
 ## Features
 
 | Feature | Description |
@@ -137,3 +141,5 @@ This project was built with AI assistance (Cursor / Claude) for:
 All AI outputs were reviewed against the spec and manually verified before acceptance. The most significant override: AI initially proposed using `datetime` objects for time representation; this was simplified to `str` (`HH:MM`) because the project scope is single-day scheduling and string arithmetic is sufficient, keeping the model lighter.
 
 See `reflection.md` for a full account of design decisions, tradeoffs, and AI collaboration strategy.
+
+
