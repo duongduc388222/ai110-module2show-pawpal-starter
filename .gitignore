@@ -5,3 +5,5 @@ __pycache__/
 .DS_Store
 milestones.md
 rubric.md
+challenge.md
+pawpal_data.json
