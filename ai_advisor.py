@@ -61,7 +61,7 @@ def get_task_suggestions(
 
     genai.configure(api_key=api_key)
     model = genai.GenerativeModel(
-        model_name="gemini-2.0-flash",
+        model_name="gemini-2.5-flash",
         generation_config={"response_mime_type": "application/json", "temperature": 0.7},
     )
 
