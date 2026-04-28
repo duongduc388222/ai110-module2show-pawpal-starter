@@ -337,9 +337,12 @@ with tab_ai:
     suggestions = st.session_state.get("ai_suggestions")
     if suggestions:
         st.success(f"Gemini suggested **{len(suggestions)} task(s)** for {ai_pet}:")
-        st.dataframe(
+        st.caption("Check the tasks you want to add, then click **Add Selected**.")
+
+        edited = st.data_editor(
             [
                 {
+                    "Add": True,
                     "Task": s["title"],
                     "Time": s["time"],
                     "Duration (min)": s["duration_minutes"],
@@ -350,22 +353,29 @@ with tab_ai:
             ],
             use_container_width=True,
             hide_index=True,
+            column_config={"Add": st.column_config.CheckboxColumn("Add", default=True)},
+            disabled=["Task", "Time", "Duration (min)", "Priority", "Frequency"],
         )
 
-        if st.button("➕ Add All to Schedule", use_container_width=True):
-            pet = owner.get_pet(ai_pet)
-            if pet:
-                for s in suggestions:
-                    pet.add_task(Task(
-                        title=s["title"],
-                        time=s["time"],
-                        duration_minutes=s["duration_minutes"],
-                        priority=s["priority"],
-                        pet_name=s["pet_name"],
-                        frequency=s["frequency"],
-                    ))
-                st.success(
-                    f"Added {len(suggestions)} task(s) for **{ai_pet}**. "
-                    "Switch to the Schedule tab to view them."
-                )
-                st.session_state.pop("ai_suggestions", None)
+        selected = [suggestions[i] for i, row in enumerate(edited) if row["Add"]]
+
+        if st.button("➕ Add Selected to Schedule", type="primary", use_container_width=True):
+            if not selected:
+                st.warning("No tasks selected — check at least one box.")
+            else:
+                pet = owner.get_pet(ai_pet)
+                if pet:
+                    for s in selected:
+                        pet.add_task(Task(
+                            title=s["title"],
+                            time=s["time"],
+                            duration_minutes=s["duration_minutes"],
+                            priority=s["priority"],
+                            pet_name=s["pet_name"],
+                            frequency=s["frequency"],
+                        ))
+                    st.success(
+                        f"Added {len(selected)} of {len(suggestions)} task(s) for **{ai_pet}**. "
+                        "Switch to the Schedule tab to view them."
+                    )
+                    st.session_state.pop("ai_suggestions", None)
