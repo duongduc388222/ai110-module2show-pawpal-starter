@@ -9,6 +9,9 @@ milestones.md
 rubric.md
 challenge.md
 *.md
+!README.md
+!model_card.md
+!assets/system_architecture.md
 
 pawpal_data.json
 
