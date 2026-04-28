@@ -4,6 +4,7 @@ import os
 
 import streamlit as st
 from pawpal_system import Owner, Pet, Task, Scheduler, save_to_json, load_from_json
+from ai_advisor import get_task_suggestions, AdvisorError
 
 _DATA_FILE = "pawpal_data.json"
 
@@ -89,7 +90,9 @@ if not owner.pets:
     st.info("Add a pet in the sidebar to get started.")
     st.stop()
 
-tab_schedule, tab_add, tab_tools = st.tabs(["📅 Schedule", "➕ Add Task", "🔧 Tools"])
+tab_schedule, tab_add, tab_tools, tab_ai = st.tabs(
+    ["📅 Schedule", "➕ Add Task", "🔧 Tools", "🤖 AI Advisor"]
+)
 
 # ── Tab: Add Task ─────────────────────────────────────────────────────────────
 
@@ -275,3 +278,94 @@ with tab_tools:
                 st.warning("No available slot found before midnight.")
         except (ValueError, AssertionError):
             st.error("Invalid time format. Use HH:MM.")
+
+# ── Tab: AI Advisor ───────────────────────────────────────────────────────────
+
+with tab_ai:
+    st.subheader("AI Care Advisor")
+    st.caption(
+        "Describe your pet and let Gemini suggest appropriate care tasks. "
+        "Suggestions are added directly to the schedule."
+    )
+
+    pet_names = [p.name for p in owner.pets]
+    col_ai1, col_ai2 = st.columns(2)
+
+    with col_ai1:
+        ai_pet = st.selectbox("Select pet", pet_names, key="ai_pet_sel")
+
+    selected_pet = owner.get_pet(ai_pet) if ai_pet else None
+
+    with col_ai2:
+        if selected_pet:
+            st.info(f"Species: **{selected_pet.species}**")
+
+    col_ai3, col_ai4 = st.columns(2)
+    with col_ai3:
+        ai_age = st.number_input(
+            "Age (years)", min_value=0.1, max_value=30.0, value=2.0,
+            step=0.5, key="ai_age_in"
+        )
+    with col_ai4:
+        ai_notes = st.text_area(
+            "Notes (optional)", placeholder="e.g. indoor only, just adopted, has joint issues",
+            key="ai_notes_in", height=80
+        )
+
+    # Clear cached suggestions when the selected pet changes
+    if st.session_state.get("ai_last_pet") != ai_pet:
+        st.session_state.pop("ai_suggestions", None)
+        st.session_state["ai_last_pet"] = ai_pet
+
+    if st.button("✨ Get Suggestions", type="primary", use_container_width=True):
+        if not selected_pet:
+            st.warning("Please add a pet first using the sidebar.")
+        else:
+            with st.spinner("Asking Gemini for care task ideas…"):
+                try:
+                    suggestions = get_task_suggestions(
+                        pet_name=selected_pet.name,
+                        species=selected_pet.species,
+                        age_years=ai_age,
+                        notes=ai_notes,
+                    )
+                    st.session_state["ai_suggestions"] = suggestions
+                except AdvisorError as e:
+                    st.error(f"Advisor error: {e}")
+                    st.session_state.pop("ai_suggestions", None)
+
+    suggestions = st.session_state.get("ai_suggestions")
+    if suggestions:
+        st.success(f"Gemini suggested **{len(suggestions)} task(s)** for {ai_pet}:")
+        st.dataframe(
+            [
+                {
+                    "Task": s["title"],
+                    "Time": s["time"],
+                    "Duration (min)": s["duration_minutes"],
+                    "Priority": f"{PRIORITY_ICON.get(s['priority'], '')} {s['priority']}",
+                    "Frequency": f"{FREQ_ICON.get(s['frequency'], '')} {s['frequency']}",
+                }
+                for s in suggestions
+            ],
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        if st.button("➕ Add All to Schedule", use_container_width=True):
+            pet = owner.get_pet(ai_pet)
+            if pet:
+                for s in suggestions:
+                    pet.add_task(Task(
+                        title=s["title"],
+                        time=s["time"],
+                        duration_minutes=s["duration_minutes"],
+                        priority=s["priority"],
+                        pet_name=s["pet_name"],
+                        frequency=s["frequency"],
+                    ))
+                st.success(
+                    f"Added {len(suggestions)} task(s) for **{ai_pet}**. "
+                    "Switch to the Schedule tab to view them."
+                )
+                st.session_state.pop("ai_suggestions", None)
