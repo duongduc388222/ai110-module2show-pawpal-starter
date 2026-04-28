@@ -8,6 +8,12 @@ PawPal+ is a Streamlit-based pet care management system that lets a pet owner sc
 
 ![PawPal+ Schedule view showing Duc's pet Milu with tasks, filters, and mark-complete](demo.png)
 
+## Walkthrough Video
+
+🎥 [Loom Walkthrough](LOOM_LINK_HERE)
+
+---
+
 ## Features
 
 | Feature | Description |
@@ -18,10 +24,17 @@ PawPal+ is a Streamlit-based pet care management system that lets a pet owner sc
 | **Flexible filtering** | Isolate tasks by pet name and/or completion status |
 | **Recurrence** | `daily` and `weekly` tasks auto-regenerate once completed |
 | **Conflict detection** | Flags overlapping time windows for the same pet |
+| **AI Care Advisor** | Gemini 2.5 Flash suggests species-appropriate care tasks from pet name, age, and notes |
 
 ---
 
 ## System Architecture
+
+![System Architecture](assets/system_architecture.md)
+
+The diagram above shows the full data flow: user input → AI Advisor (input validation → Gemini API → output guardrail) → PawPal scheduling engine → schedule view. The eval harness runs the same AI layer against predefined test cases offline.
+
+### Class diagram (base system)
 
 ```mermaid
 classDiagram
@@ -77,7 +90,7 @@ classDiagram
 
 ### Prerequisites
 
-Python 3.10 or newer.
+Python 3.10 or newer and a free [Google AI Studio API key](https://aistudio.google.com/apikey) for the AI Advisor feature.
 
 ### Setup
 
@@ -87,13 +100,27 @@ source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+Create a `.env` file in the project root with your Gemini key:
+
+```
+GEMINI_API_KEY=your-key-here
+```
+
 ### Run the Streamlit app
 
 ```bash
 streamlit run app.py
 ```
 
-Open the URL printed in the terminal (typically http://localhost:8501).
+Open the URL printed in the terminal (typically http://localhost:8501). Navigate to the **🤖 AI Advisor** tab to use the Gemini-powered task suggester.
+
+### Run the AI evaluation harness
+
+```bash
+python eval_harness.py
+```
+
+Runs 6 predefined test cases (4 valid-input, 2 guardrail) and prints a pass/fail table. Exit code `0` = all pass.
 
 ### Run the CLI demo
 
@@ -152,6 +179,73 @@ Five optional challenges from `challenge.md` were implemented:
 ### Challenge 5 — Multi-Model Benchmarking
 
 See the **Prompt Comparison** section in `reflection.md` for a side-by-side analysis of Claude vs GPT-4o on the `find_next_slot` implementation task.
+
+---
+
+## AI Care Advisor — Sample I/O
+
+The AI Advisor tab accepts a pet name, species, age, and optional notes. It calls Gemini and returns structured care tasks that can be added to the schedule in one click.
+
+### Example 1 — Dog, 2 years old
+
+**Input:** Buddy · dog · 2 years · "outdoor, active"
+
+**Output (suggested tasks):**
+
+| Task | Time | Duration | Priority | Frequency |
+| :--- | :--- | :--- | :--- | :--- |
+| Morning walk | 07:00 | 45 min | high | daily |
+| Breakfast feeding | 08:00 | 15 min | high | daily |
+| Afternoon play session | 15:00 | 30 min | medium | daily |
+| Evening walk | 18:00 | 30 min | high | daily |
+| Dinner feeding | 19:00 | 15 min | high | daily |
+
+---
+
+### Example 2 — Cat, 5 years old
+
+**Input:** Mochi · cat · 5 years · "indoor only"
+
+**Output (suggested tasks):**
+
+| Task | Time | Duration | Priority | Frequency |
+| :--- | :--- | :--- | :--- | :--- |
+| Morning feeding | 08:00 | 10 min | high | daily |
+| Litter box cleaning | 09:00 | 10 min | high | daily |
+| Interactive play session | 11:00 | 20 min | medium | daily |
+| Evening feeding | 18:00 | 10 min | high | daily |
+
+---
+
+### Example 3 — Invalid species (guardrail triggered)
+
+**Input:** Nemo · dragon · 2 years
+
+**Output (no API call made):**
+
+```
+Advisor error: Species 'dragon' is not supported.
+Choose from: bird, cat, dog, fish, other, rabbit.
+```
+
+---
+
+## Evaluation Harness — Sample Output
+
+```
+PawPal+ AI Advisor — Evaluation Harness
+============================================================
+#       Input                 Result    Detail
+------  --------------------  --------  -----------------------------------------------
+Case 1  Buddy (dog, 2y)       PASS ✅   4 task(s) returned, all fields valid
+Case 2  Mochi (cat, 5y)       PASS ✅   5 task(s) returned, all fields valid
+Case 3  Thumper (rabbit, 1y)  PASS ✅   4 task(s) returned, all fields valid
+Case 4  Tweety (bird, 3y)     PASS ✅   4 task(s) returned, all fields valid
+Case 5  Nemo (dragon, 2y)     PASS ✅   guardrail raised AdvisorError ✓
+Case 6  — (dog, -1y)          PASS ✅   guardrail raised AdvisorError ✓
+============================================================
+Result: 6/6 passed
+```
 
 ---
 
