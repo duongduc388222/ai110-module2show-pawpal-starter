@@ -69,23 +69,28 @@ def get_task_suggestions(
         notes_line=notes_line,
     )
 
-    try:
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.7,
-            ),
-        )
-        raw = response.text
-    except Exception as exc:
-        raise AdvisorError(f"Gemini API error: {exc}") from exc
+    last_exc: Exception | None = None
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    temperature=0.7,
+                ),
+            )
+            raw = response.text
+        except Exception as exc:
+            raise AdvisorError(f"Gemini API error: {exc}") from exc
 
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError as exc:
-        raise AdvisorError(f"Gemini returned non-JSON output: {exc}") from exc
+        try:
+            data = json.loads(raw)
+            break  # parsed successfully
+        except json.JSONDecodeError as exc:
+            last_exc = exc
+    else:
+        raise AdvisorError(f"Gemini returned non-JSON output after 3 attempts: {last_exc}") from last_exc
 
     if not isinstance(data, list):
         raise AdvisorError("Gemini returned a JSON object instead of an array.")
