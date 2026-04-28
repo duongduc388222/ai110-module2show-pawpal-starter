@@ -6,7 +6,8 @@ import json
 import os
 import re
 
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 
 load_dotenv()  # loads .env from project root if present
@@ -59,11 +60,7 @@ def get_task_suggestions(
             "Get a free key at https://aistudio.google.com/apikey"
         )
 
-    genai.configure(api_key=api_key)
-    model = genai.GenerativeModel(
-        model_name="gemini-2.5-flash",
-        generation_config={"response_mime_type": "application/json", "temperature": 0.7},
-    )
+    client = genai.Client(api_key=api_key)
 
     prompt = _PROMPT_TEMPLATE.format(
         pet_name=pet_name,
@@ -73,7 +70,14 @@ def get_task_suggestions(
     )
 
     try:
-        response = model.generate_content(prompt)
+        response = client.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.7,
+            ),
+        )
         raw = response.text
     except Exception as exc:
         raise AdvisorError(f"Gemini API error: {exc}") from exc
